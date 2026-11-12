@@ -8,14 +8,11 @@ const appHost = process.env.APP_URL ? new URL(process.env.APP_URL).host : null;
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
-  // Despliegue SSR de Emergent: servidor Node autónomo (.next/standalone). public/ y .next/static
-  // se copian dentro en `yarn build` (scripts/postbuild-standalone.mjs).
-  output: "standalone",
+  // Servidor Next.js estándar (`next start`): sirve public/ y .next/static desde el proyecto (sin output "standalone").
   experimental: {
     instrumentationHook: true,
     serverComponentsExternalPackages: ["mongodb"],
     serverActions: { allowedOrigins: [...(appHost ? [appHost] : []), ...forwardedOrigins] },
-    outputFileTracingIncludes: { "/**": ["./public/**/*"] },
   },
   webpack: (config, { isServer }) => {
     if (isServer) config.externals = [...(config.externals || []), "mongodb"];

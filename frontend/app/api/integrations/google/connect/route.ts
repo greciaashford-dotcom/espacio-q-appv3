@@ -3,10 +3,11 @@ import { cookies } from "next/headers";
 import { getCurrentUser, canManageSettingsOrUsers } from "@/lib/auth/session";
 import { generateOpaqueToken } from "@/lib/security/crypto";
 import { buildGoogleBusinessOAuthUrl } from "@/lib/integrations/google";
+import { withDbGuard } from "@/lib/http/db-guard";
 
 const OAUTH_STATE_COOKIE = "espacioq_google_oauth_state";
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const user = await getCurrentUser();
   const baseUrl = process.env.APP_URL || new URL(request.url).origin;
 
@@ -32,3 +33,5 @@ export async function GET(request: Request) {
 
   return NextResponse.redirect(authUrl);
 }
+
+export const GET = withDbGuard(handleGET);

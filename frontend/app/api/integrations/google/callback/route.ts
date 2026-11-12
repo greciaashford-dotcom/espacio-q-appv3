@@ -8,10 +8,11 @@ import {
   syncScheduleWithGoogle,
 } from "@/lib/integrations/google";
 import { prisma } from "@/lib/db/prisma";
+import { withDbGuard } from "@/lib/http/db-guard";
 
 const OAUTH_STATE_COOKIE = "espacioq_google_oauth_state";
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const url = new URL(request.url);
   const baseUrl = process.env.APP_URL || url.origin;
   const user = await getCurrentUser();
@@ -104,3 +105,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withDbGuard(handleGET);

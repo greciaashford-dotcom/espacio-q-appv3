@@ -8,6 +8,7 @@ import {
 } from "@/lib/domain/booking";
 import { isSameOrigin } from "@/lib/security/rate-limit";
 import { processDueJobsAndCampaigns } from "@/lib/jobs/worker";
+import { withDbGuard } from "@/lib/http/db-guard";
 
 const manageSchema = z.discriminatedUnion("action", [
   z.object({
@@ -28,7 +29,7 @@ const manageSchema = z.discriminatedUnion("action", [
 ]);
 
 // Todas las mutaciones de gestión de cita se ejecutan únicamente por POST validado (nunca GET).
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!isSameOrigin(req)) {
     return NextResponse.json({ error: "Origen no permitido." }, { status: 403 });
   }
@@ -111,3 +112,5 @@ export async function POST(req: Request) {
   await processDueJobsAndCampaigns({ batchSize: 5 }).catch(() => null);
   return NextResponse.json({ ok: true, appointment: res.appointment });
 }
+
+export const POST = withDbGuard(handlePOST);

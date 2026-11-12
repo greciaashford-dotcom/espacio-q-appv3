@@ -9,6 +9,7 @@ import {
 import { generateOpaqueToken } from "@/lib/security/crypto";
 import { isSameOrigin } from "@/lib/security/rate-limit";
 import { putMediaObject } from "@/lib/storage/object-storage";
+import { withDbGuard } from "@/lib/http/db-guard";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB
 const MAX_DIMENSION_PX = 6000;
@@ -58,7 +59,7 @@ async function saveBufferToMediaStorage(buf: Buffer, mime: string) {
   };
 }
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!isSameOrigin(req)) {
     return NextResponse.json({ error: "Origen no permitido." }, { status: 403 });
   }
@@ -266,3 +267,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, asset });
 }
+
+export const POST = withDbGuard(handlePOST);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { calculateAvailableSlots } from "@/lib/domain/booking";
+import { withDbGuard } from "@/lib/http/db-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ const querySchema = z.object({
   professionalId: z.string().optional(),
 });
 
-export async function GET(req: Request) {
+async function handleGET(req: Request) {
   const { searchParams } = new URL(req.url);
   const parsed = querySchema.safeParse({
     serviceId: searchParams.get("serviceId"),
@@ -46,3 +47,5 @@ export async function GET(req: Request) {
     { headers: { "Cache-Control": "no-store, max-age=0" } }
   );
 }
+
+export const GET = withDbGuard(handleGET);

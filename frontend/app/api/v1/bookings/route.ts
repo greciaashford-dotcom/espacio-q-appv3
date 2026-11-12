@@ -8,6 +8,7 @@ import {
   isSameOrigin,
 } from "@/lib/security/rate-limit";
 import { processDueJobsAndCampaigns } from "@/lib/jobs/worker";
+import { withDbGuard } from "@/lib/http/db-guard";
 
 const createBookingSchema = z.object({
   serviceId: z.string().min(1),
@@ -33,7 +34,7 @@ const createBookingSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(120),
 });
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!isSameOrigin(req)) {
     return NextResponse.json({ error: "Origen no permitido." }, { status: 403 });
   }
@@ -114,3 +115,5 @@ export async function POST(req: Request) {
       : null,
   });
 }
+
+export const POST = withDbGuard(handlePOST);

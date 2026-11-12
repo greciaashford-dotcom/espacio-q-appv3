@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, canManageCatalogOrCms } from "@/lib/auth/session";
 import { executeClientsXlsxImport } from "@/lib/domain/excel";
 import { isSameOrigin } from "@/lib/security/rate-limit";
+import { withDbGuard } from "@/lib/http/db-guard";
 
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024; // 5 MB
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   if (!isSameOrigin(request)) {
     return NextResponse.json({ error: "Origen no permitido" }, { status: 403 });
   }
@@ -65,3 +66,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withDbGuard(handlePOST);

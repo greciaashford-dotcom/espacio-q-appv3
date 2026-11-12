@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManageCatalogOrCms } from "@/lib/auth/session";
 import { generateClientsExcelTemplate } from "@/lib/domain/excel";
+import { withDbGuard } from "@/lib/http/db-guard";
 
-export async function GET() {
+async function handleGET() {
   const user = await getCurrentUser();
   if (!user || !canManageCatalogOrCms(user)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
@@ -20,3 +21,5 @@ export async function GET() {
     },
   });
 }
+
+export const GET = withDbGuard(handleGET);

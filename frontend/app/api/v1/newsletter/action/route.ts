@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { confirmNewsletterSubscription, unsubscribeMarketing } from "@/lib/domain/newsletter";
 import { isSameOrigin } from "@/lib/security/rate-limit";
+import { withDbGuard } from "@/lib/http/db-guard";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm"), token: z.string().min(16).max(200) }),
@@ -13,7 +14,7 @@ const schema = z.discriminatedUnion("action", [
 ]);
 
 // Las acciones se ejecutan solo vía POST (los escáneres de correo abren enlaces GET).
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!isSameOrigin(req)) {
     return NextResponse.json({ error: "Origen no permitido." }, { status: 403 });
   }
@@ -35,3 +36,5 @@ export async function POST(req: Request) {
   // Respuesta neutra: no revelamos si la dirección existía.
   return NextResponse.json({ ok: true, processed: res.ok });
 }
+
+export const POST = withDbGuard(handlePOST);

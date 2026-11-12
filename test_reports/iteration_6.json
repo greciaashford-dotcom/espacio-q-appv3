@@ -1,0 +1,12 @@
+{
+  "iteration": 6,
+  "phase": "5 - native Next.js runtime (preview regression JRN-77..JRN-80 + deploy checks)",
+  "summary": "No Phase 5 regression. Deploy checks 17/17 (backend/tests/test_phase5_deploy_preview.py). Browser journeys JRN-77, JRN-78, JRN-79 and login/roles passed. Old phase-2 email pytest suites 60/71 (failures caused only by Resend rate limit during burst sending; honest statuses, no DELIVERED).",
+  "post_run_check_by_main_agent": "After the 11-min rate-limit cooldown, POST /api/internal/jobs processed 33 jobs: CONTACT_ACK t78 ACCEPTED, CLIENT_WELCOME t77 ACCEPTED, APPOINTMENT_CANCELLED t77 ACCEPTED; NEWSLETTER_VERIFY t78nl/t78dlg FAILED 'Pendiente de reintento' with RETRY jobs pending.",
+  "known_pre_existing_not_phase5": [
+    "Queue processes oldest-first (backlog can delay new confirmations)",
+    "Deleted media assets remain served from object storage",
+    "Rate-limit cooldown is in-memory per process"
+  ],
+  "should_call_test_agent_after_fix": false
+}

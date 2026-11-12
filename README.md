@@ -26,41 +26,43 @@ Aplicación web integral de producción para **ESPACIO Q** (salón de belleza en
 
 ---
 
-## Estructura y puesta en marcha (Emergent)
+## Estructura y puesta en marcha (Emergent, plantilla Next.js)
 
-- `frontend/` → aplicación **Next.js 14** completa (App Router, server actions, route handlers). Supervisor ejecuta `yarn start` = `next build && next start` en el puerto 3000 (`yarn start:dev` para modo desarrollo).
-- `backend/server.py` → proxy FastAPI mínimo: el ingress envía `/api/*` al puerto 8001 y se reenvía tal cual a Next.js (`NEXT_INTERNAL_URL`). Devuelve 503 si MongoDB no responde.
-- Base de datos: solo `MONGO_URL` y `DB_NAME`. Índices únicos/secundarios generados desde `prisma/schema.prisma` (`yarn db:gen` → `lib/db/schema.generated.ts`) y creados al conectar. Sin transacciones multi-documento.
-- Semilla idempotente: `yarn db:seed` (también se carga automáticamente al arrancar si la base está vacía, `instrumentation-node.ts`).
+La aplicación es **solo Next.js** (`/app/frontend`): páginas SSR, server actions, route handlers `/api/*`, `/media/*`, `/health`. No necesita FastAPI ni Python. Guía completa de publicación y migración: `/app/memory/DEPLOYMENT.md`.
+
+| | Comando (en `/app/frontend`) |
+|---|---|
+| Desarrollo | `yarn dev` → `next dev -H 0.0.0.0 -p ${PORT:-3000}` (`yarn start:dev` = puerto 3000 fijo) |
+| Build de producción | `yarn build` → `next build` (sin `output: "standalone"`: `public/` y `.next/static` se sirven desde el proyecto) |
+| Arranque de producción | `yarn start` → `next start -H 0.0.0.0 -p ${PORT:-3000}` (8080 al publicar). El `prestart` compila antes si `.next` no tiene build o está desactualizada |
+| Health check | `GET /health` → `200 {"status":"ok"}` (sin depender de MongoDB) |
+
+- Base de datos: solo `MONGO_URL` y `DB_NAME`. Índices únicos/secundarios generados desde `prisma/schema.prisma` (`yarn db:gen` → `lib/db/schema.generated.ts`) y creados al conectar. Sin transacciones multi-documento. Si MongoDB no responde, `/api/*` devuelve `503 {"error":"Base de datos no disponible temporalmente."}`.
+- Semilla idempotente: `yarn db:seed` (también se carga automáticamente en segundo plano al arrancar si la base está vacía, `instrumentation-node.ts`).
 - Alta de usuarios por consola: `BOOTSTRAP_PASSWORD=... npx tsx --env-file=.env prisma/create-admin.ts --email x@y --name "Nombre" --role OWNER_ADMIN`.
-- Cola de trabajos: `/app/.emergent/crons.yml` llama `POST /api/internal/jobs` cada 5 min (Bearer `WEBHOOK_CRON_SECRET`); manualmente con `Bearer CRON_SECRET`.
-- Tests: `yarn test` (Vitest contra MongoDB real) · `yarn typecheck` · `yarn build`.
+- Cola de trabajos: planificador interno (cada 5 min, lease en MongoDB) + `POST /api/internal/jobs` con `Bearer CRON_SECRET` o `Bearer WEBHOOK_CRON_SECRET`. `/app/.emergent/crons.yml` (cada 15 min) es solo un respaldo.
+- Variables: plantilla en `frontend/.env.example`; lista de secretos de publicación en `/app/memory/DEPLOYMENT.md`.
 - OpenAPI: `GET /api/openapi.json`.
+- `backend/server.py` solo existe en el pod de preview antiguo (plantilla mono): relay `/api/*` → Next.js sin lógica. En el proyecto de plantilla Next.js se elimina la carpeta `backend/`.
 
 ---
 
 ## Verificación, Tests y Compilación de Producción
 
 ```bash
-# Comprobación estricta de tipos TypeScript
-npm run typecheck
-
-# Linter Next.js / ESLint
-npm run lint
-
-# Suite completa de pruebas automatizadas (Vitest contra PostgreSQL real)
-npm run test
-
-# Build optimizado de producción
-npm run build
-npm run start
+cd frontend
+yarn typecheck   # TypeScript estricto
+yarn lint        # ESLint
+yarn test        # Vitest contra MongoDB real (MONGO_URL/DB_NAME de .env)
+yarn build       # next build
+yarn start       # next start en $PORT
 ```
 
 ---
 
 ## Worker de Notificaciones y Sincronización Programada
 
-En producción, programa un cron (cada 1–5 minutos) contra el endpoint interno protegido con `CRON_SECRET`:
+El planificador interno procesa la cola cada 5 min. Manualmente o desde un cron externo, contra el endpoint interno protegido con `CRON_SECRET`:
 
 ```bash
 curl -X POST "https://tu-dominio.es/api/internal/jobs?syncGoogle=1" \
@@ -76,5 +78,5 @@ También puede ejecutarse manualmente en cualquier momento desde **`/admin/autom
 1. **Datos fiscales y de contacto (`/admin/configuracion`):** completar Razón Social/Titular, NIF/CIF, domicilio social en Madrid, datos registrales (si aplica), teléfono y correo de contacto/privacidad para sustituir todos los avisos `[Dato pendiente de configurar...]`.
 2. **Catálogo, equipo y horarios (`/admin/servicios`, `/admin/equipo`, `/admin/horarios`):** dar de alta servicios reales con tarifas/duraciones, asignar profesionales, confirmar el horario semanal y activar `Habilitar reservas online públicas`.
 3. **Fotografías propias (`/admin/multimedia`):** sustituir las 6 imágenes editoriales provisionales de referencia por fotografías reales del salón en Madrid.
-4. **Proveedor de email y webhooks:** configurar `EMAIL_PROVIDER_API_KEY` (Resend), dominio remitente verificado en `EMAIL_FROM` (SPF/DKIM/DMARC) y `EMAIL_WEBHOOK_SECRET` apuntando a `/api/webhooks/email`.
+4. **Email:** Resend gestionado por Emergent (`EMERGENT_EMAIL_KEY`, `EMAIL_FROM_NAME`); para campañas, verificar el dominio propio espacioq.es. `EMAIL_WEBHOOK_SECRET` firma los webhooks en `/api/webhooks/email`.
 5. **Google Business Profile / Places (opcional):** configurar `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_BUSINESS_LOCATION_ID` (o `GOOGLE_PLACES_API_KEY` + `GOOGLE_PLACE_ID`) para sincronización automática; sin ellos el sistema opera de forma completa en modo **Horario Manual**.

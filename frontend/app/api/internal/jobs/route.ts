@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { processDueJobsAndCampaigns } from "@/lib/jobs/worker";
 import { syncScheduleWithGoogle } from "@/lib/integrations/google";
 import { sweepOrphanSlotLocks } from "@/lib/db/slot-locks";
+import { withDbGuard } from "@/lib/http/db-guard";
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
   if (!cronSecret || cronSecret.length < 16) {
     return NextResponse.json(
@@ -51,3 +52,5 @@ export async function POST(request: Request) {
     { status: 200 }
   );
 }
+
+export const POST = withDbGuard(handlePOST);

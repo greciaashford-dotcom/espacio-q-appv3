@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canExportCrm } from "@/lib/auth/session";
 import { exportClientsToXlsx } from "@/lib/domain/excel";
+import { withDbGuard } from "@/lib/http/db-guard";
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const user = await getCurrentUser();
   if (!user || !canExportCrm(user)) {
     return NextResponse.json(
@@ -41,3 +42,5 @@ export async function GET(request: Request) {
     },
   });
 }
+
+export const GET = withDbGuard(handleGET);

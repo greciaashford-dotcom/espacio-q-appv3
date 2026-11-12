@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requestNewsletterSubscription } from "@/lib/domain/newsletter";
 import { checkRateLimit, getClientIdentifier, isSameOrigin } from "@/lib/security/rate-limit";
+import { withDbGuard } from "@/lib/http/db-guard";
 
 const schema = z.object({
   email: z.string().trim().email("Introduce un email válido.").max(254),
@@ -12,7 +13,7 @@ const schema = z.object({
   source: z.enum(["newsletter_dialog", "footer_form"]).optional(),
 });
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!isSameOrigin(req)) {
     return NextResponse.json({ error: "Origen no permitido." }, { status: 403 });
   }
@@ -52,3 +53,5 @@ export async function POST(req: Request) {
   // Nunca devolvemos el token de verificación al navegador.
   return NextResponse.json({ ok: true, state: result.state, message: result.message });
 }
+
+export const POST = withDbGuard(handlePOST);

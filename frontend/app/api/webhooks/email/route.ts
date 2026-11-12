@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { processSignedEmailWebhook } from "@/lib/email/webhook";
+import { withDbGuard } from "@/lib/http/db-guard";
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const rawBody = await request.text();
   const signatureHeader =
     request.headers.get("x-webhook-signature") ||
@@ -22,3 +23,5 @@ export async function POST(request: Request) {
 
   return NextResponse.json(result, { status: 200 });
 }
+
+export const POST = withDbGuard(handlePOST);

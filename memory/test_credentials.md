@@ -20,6 +20,8 @@ BOOTSTRAP_PASSWORD='EspacioQ-Recep-2026!' npx tsx --env-file=.env prisma/create-
 First-owner wizard (JRN-3) only appears when the `user` collection is empty:
 `mongosh espacio_q --eval 'db.user.deleteMany({}); db.session.deleteMany({})'` → open `/acceso` → "Crear cuenta propietaria y entrar". Re-run the commands above afterwards.
 
-Cron / internal jobs: `POST /api/internal/jobs` with `Authorization: Bearer <CRON_SECRET>` (value in /app/frontend/.env) or `Bearer <WEBHOOK_CRON_SECRET>` (value in /app/backend/.env, used by the Emergent cron). An in-process scheduler (lib/jobs/scheduler.ts, Mongo lease `schedulerLeases`) also processes the queue every 5 min.
+Cron / internal jobs: `POST /api/internal/jobs` with `Authorization: Bearer <CRON_SECRET>` or `Bearer <WEBHOOK_CRON_SECRET>` (both in /app/frontend/.env; this pod's backend/.env also has a WEBHOOK_CRON_SECRET for the old Emergent cron). An in-process scheduler (lib/jobs/scheduler.ts, Mongo lease `schedulerLeases`) processes the queue every 5 min (first run ~15 s after start).
+
+Preview pod recycles can empty the `user` collection → re-run the two create-admin commands above (last done 2026-11-12). In the new Next.js-template project run them after creating /app/frontend/.env.
 
 Email (Phase 2): real sends via Emergent-managed Resend. For tests that must really reach the provider use Resend test inboxes `delivered@resend.dev` / `delivered+<label>@resend.dev` (never real third-party addresses). Recipients on reserved test domains (example.com/.org/.net, *.test, *.invalid, espacioq-test.es) are intentionally NOT sent (stored as SIMULATED_LOCAL with reason).

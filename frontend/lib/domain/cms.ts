@@ -231,6 +231,9 @@ export async function ensureBaseCmsAndSettings() {
           seoTitle: page.seoTitle,
           seoDescription: page.seoDescription,
         },
+      }).catch((e: any) => {
+        // Arranque en frío: otra petición concurrente ya creó el bloque
+        if (e?.code !== "P2002") throw e;
       });
     }
   }

@@ -1,5 +1,6 @@
 jobs:
-  - name: espacioq-process-job-queue
-    schedule: "*/5 * * * *"
+  - name: espacioq-job-queue
+    cron: "*/15 * * * *"
     method: POST
     endpoint: "{{BASE_URL}}/api/internal/jobs"
+    description: "Respaldo del planificador interno (que ya procesa la cola cada 5 min)"

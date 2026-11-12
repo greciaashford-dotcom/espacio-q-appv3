@@ -1,57 +1,54 @@
 # Manual de Operaciones, Despliegue y Recuperación · ESPACIO Q
 
-## 1. Requisitos de Puesta en Producción
+Guía detallada de publicación (plantilla Next.js de Emergent, checklist de migración y secretos): `/app/memory/DEPLOYMENT.md`.
 
-1. **Variables de Entorno Obligatorias:**
-   - `APP_URL`: URL pública canónica con HTTPS (ej. `https://espacioq.es`).
-   - `DATABASE_URL`: Cadena de conexión a PostgreSQL 16+ con TLS habilitado y extensión `btree_gist`.
-   - `AUTH_SECRET`: Secreto criptográfico de al menos 32 bytes aleatorios para firma de sesiones (`openssl rand -hex 32`).
-   - `TOKEN_ENCRYPTION_KEY`: Clave de 32 bytes (64 caracteres hex) independiente de `AUTH_SECRET` para cifrar tokens OAuth en reposo mediante AES-256-GCM.
-   - `CRON_SECRET`: Token exclusivo para autenticar llamadas al worker de trabajos programados (`/api/internal/jobs`).
+## 1. Puesta en Producción (Emergent, plantilla Next.js)
 
-2. **Base de Datos y Migraciones:**
-   - En entorno local, el servidor PostgreSQL 16 se inicia con:
-     ```powershell
-     & "C:\Program Files\PostgreSQL\16\bin\pg_ctl.exe" -D "d:\ESPACIO Q APP WEB\.pgdata" -l "d:\ESPACIO Q APP WEB\.pgdata\postgres.log" -o "-p 5433" start
-     ```
-   - Aplicar migraciones y restricciones SQL (incluida la restricción `EXCLUDE USING gist` anti-solapamiento en `Occupancy`):
-     ```bash
-     npm run db:migrate
-     npm run db:seed
-     ```
+- Runtime: **solo Next.js** en `/app/frontend` (sin FastAPI, sin Python).
+- Build: `yarn build` (= `next build`). Arranque: `yarn start` (= `next start -H 0.0.0.0 -p $PORT`, 8080 al publicar; el `prestart` compila si no hay build o está desactualizada).
+- Health check: `GET /health` → 200 `{"status":"ok"}` al instante, sin esperar a MongoDB, la semilla ni el planificador. `GET /` → portada SSR.
+- Primer arranque con base vacía: la semilla idempotente se carga en segundo plano.
+- MongoDB caído: `/api/*` → 503 `{"error":"Base de datos no disponible temporalmente."}`; `/health` sigue en 200.
+- Falta un secreto obligatorio: una línea `[config] Falta la variable de entorno obligatoria <NOMBRE>` en el log.
+
+### Variables de entorno (pestaña Secrets al publicar; `.env` solo en preview)
+- `MONGO_URL`, `DB_NAME`: inyectadas por Emergent (MongoDB Atlas gestionado).
+- `APP_URL`: URL pública con HTTPS (`https://<app>.emergent.host` o `https://espacioq.es`). Enlaces de correos y origen permitido de Server Actions.
+- `SITE_URL`: `https://espacioq.es` (canonical, sitemap, robots, JSON-LD).
+- `ALLOWED_FORWARDED_ORIGINS`: hosts públicos separados por comas (p. ej. `<app>.emergent.host,espacioq.es,www.espacioq.es`). Sin ello no funcionan el acceso al panel ni los formularios con server actions.
+- `TRUSTED_PROXY_HOPS`: número de proxies de confianza que añaden `X-Forwarded-For` (2 en Emergent).
+- `AUTH_SECRET`, `CRON_SECRET`, `WEBHOOK_CRON_SECRET`, `TOKEN_ENCRYPTION_KEY`: `openssl rand -hex 32`, distintos entre sí y distintos de preview.
+- `EMERGENT_LLM_KEY` (Object Storage de la biblioteca multimedia), `EMERGENT_EMAIL_KEY` + `EMAIL_FROM_NAME` (Resend gestionado), opcionales `EMAIL_REPLY_TO`, `EMAIL_WEBHOOK_SECRET`, `INTEGRATION_PROXY_URL`.
+- Opcionales Google: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GOOGLE_BUSINESS_LOCATION_ID`, `GOOGLE_PLACES_API_KEY`, `GOOGLE_PLACE_ID`.
+
+### Base de datos
+- MongoDB (driver oficial). Índices únicos y secundarios se crean al conectar (`lib/db/prisma.ts`, metadatos de `prisma/schema.prisma` vía `yarn db:gen`).
+- Semilla manual: `yarn db:seed` (idempotente). Alta de usuarios: `prisma/create-admin.ts` (ver README).
 
 ---
 
 ## 2. Tareas Programadas (Scheduler / Worker)
 
-El sistema no depende de tener un navegador abierto ni de `setTimeout` en memoria para enviar correos, procesar el outbox, enviar recordatorios de citas (24 h y 2 h antes), ejecutar campañas programadas o sincronizar horarios con Google.
-
-- **Endpoint del Worker:** `POST /api/internal/jobs`
-- **Autenticación:** Cabecera `Authorization: Bearer <CRON_SECRET>`
-- **Frecuencia recomendada:**
-  - Procesamiento de Outbox, Recordatorios y Campañas: cada **1 a 5 minutos** (`*/2 * * * *`).
-  - Sincronización de horarios con Google (cuando esté activa): cada **6 horas** (`0 */6 * * *`), enviando `{"includeGoogleSync": true}`.
-- **Garantías de ejecución:**
-  - Reclamo atómico de trabajos con `lockedUntil` (lease temporal) para evitar ejecución duplicada entre instancias y permitir recuperación automática de procesos caídos.
-  - Antes de enviar un recordatorio, el worker revalida en la base de datos que la cita siga en estado `confirmed` y que la fecha/hora (`version` / `startAtUtc`) no haya cambiado ni haya quedado en el pasado.
+- **Planificador interno** (`lib/jobs/scheduler.ts`): arranca con el servidor, comprueba cada minuto y procesa la cola cada 5 min (lease `schedulerLeases` en MongoDB: sin ejecuciones duplicadas entre instancias).
+- **Endpoint del Worker:** `POST /api/internal/jobs` con `Authorization: Bearer <CRON_SECRET>` o `Bearer <WEBHOOK_CRON_SECRET>`; `?syncGoogle=1` sincroniza horarios de Google.
+- `/app/.emergent/crons.yml`: respaldo cada 15 min (las apps publicadas descartan crons de menos de 15 min).
+- **Garantías:** reclamo atómico de trabajos con `lockedUntil`; antes de enviar un recordatorio se revalida que la cita siga confirmada y en la misma hora.
+- También manual desde **`/admin/automatizaciones` → «Procesar cola pendiente ahora»**.
 
 ---
 
 ## 3. Copias de Seguridad (Backups) y Restauración
 
-### 3.1. Backup de Base de Datos PostgreSQL
-- Ejecutar diariamente y antes de cualquier migración:
+- MongoDB gestionado por Emergent. Copia manual:
   ```bash
-  pg_dump --format=custom --no-owner --no-privileges "$DATABASE_URL" -f "backup_espacio_q_$(date +%Y%m%d_%H%M).dump"
+  mongodump --uri "$MONGO_URL" --db "$DB_NAME" --archive="backup_espacio_q_$(date +%Y%m%d_%H%M).archive" --gzip
   ```
-- Cifrar el archivo `.dump` antes de transferirlo al almacenamiento de copias de seguridad con retención recomendada de 30 días.
-
-### 3.2. Prueba de Restauración
-- Restaurar en una base de datos limpia de verificación:
+- Restauración en una base de verificación:
   ```bash
-  pg_restore --clean --if-exists --no-owner -d "$RESTORE_DATABASE_URL" backup_espacio_q_YYYYMMDD_HHMM.dump
+  mongorestore --uri "$RESTORE_MONGO_URL" --archive=backup_espacio_q_YYYYMMDD_HHMM.archive --gzip --nsFrom="$DB_NAME.*" --nsTo="espacio_q_restore.*"
   ```
-- Verificar la integridad de las restricciones `EXCLUDE USING gist` ejecutando `npm run test`.
+- Tras restaurar, el arranque recrea los índices; ejecutar `yarn test` contra la base restaurada para verificar.
+- Archivos multimedia: en Emergent Object Storage (no en el disco del contenedor, que es efímero).
 
 ---
 

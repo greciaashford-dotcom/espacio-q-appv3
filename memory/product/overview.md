@@ -31,12 +31,19 @@ A beauty salon in Madrid (ESPACIO Q, Calle de Pelayo 41, 28004) gets a public ed
 | F-16 | SEO (local "peluquería Chueca", canonical https://espacioq.es, structured data, sitemap, meta) and GEO (AI crawlers allowed, llms.txt, server-rendered facts) | Visitante | 4 |
 | F-17 | FAQ page /preguntas-frecuentes editable from the panel, with FAQPage structured data | Visitante, Admin | 4 |
 | F-18 | ESPACIO Q "Q" favicon + app icons + web manifest | Visitante | 4 |
+| F-19 | Published app runs on the Next.js server runtime (SSR pages, server actions, API routes, health) — FastAPI is not in the production request path and never launches Next.js | all | 5 |
+| F-20 | Published build ships every static file (CSS, JS, favicon, icons, share image, manifest, public images) | Visitante | 5 |
+| F-21 | Publish-friendly startup: listens on the platform port (8080), `/` and `/health` answer fast; seed and job scheduler run without blocking startup | system | 5 |
+| F-22 | All existing features keep working in preview and in the published app (no feature changes) | all | 5 |
+| F-23 | Owner gets a clear publish checklist (secrets) and up-to-date run/deploy docs | Admin | 5 |
 
 ## Phases
 - **Phase 1** → Next.js running on Emergent with MongoDB; full parity of existing features; anti-double-booking; object storage; scheduled job processing → F-1, F-2, F-3, F-4, F-5, F-6. Docs: `/app/memory/product/phase1/requirement.md`, `/app/memory/product/phase1/journeys.md`
 - **Phase 2** → Real email everywhere via Resend + welcome emails + salon notices → F-7, F-8, F-9, F-10. Docs: `/app/memory/product/phase2/requirement.md`, `/app/memory/product/phase2/journeys.md`
 - **Phase 3** → Contact page map + directions + editable transport text → F-11, F-12, F-13. Docs: `/app/memory/product/phase3/requirement.md`, `/app/memory/product/phase3/journeys.md`
 - **Phase 4** → Scroll-to-top, desktop popup sizing, SEO + GEO, FAQ page, favicon → F-14…F-18. Docs: `/app/memory/product/phase4/requirement.md`, `/app/memory/product/phase4/journeys.md`
+- **Phase 5** → Deploy on the native Next.js runtime (no FastAPI in production), complete static assets, fast health, full regression, publish checklist → F-19…F-23. Docs: `/app/memory/product/phase5/requirement.md`, `/app/memory/product/phase5/journeys.md`
+  - User decisions (2026-10): keep every feature as is, change only startup/deploy; remove FastAPI from production (Next.js serves everything); if Emergent's publishing cannot run Next.js directly → stop and wait for Emergent support confirmation (no FastAPI workaround, no external host for now).
 
 ## UI/UX Rules
 - Keep the existing "Zen Linen" editorial design, Spanish copy, WCAG 2.2 AA behaviour and layout. No redesign.
@@ -62,6 +69,9 @@ A beauty salon in Madrid (ESPACIO Q, Calle de Pelayo 41, 28004) gets a public ed
 - Salon notice address not configured → notices skipped and the panel shows a clear warning.
 - Visitor rejects cookies → map still works (OpenStreetMap), Google iframe never loads.
 - Pod recycle wipes preview Mongo data → seed must be re-runnable and idempotent.
+- Publishing: platform health check needs `/` = 200 and `/health` < 500 within ~10 s on port 8080; known Emergent limitation: with Next.js `output: "standalone"` the `public/` folder may be missing in production.
+- Preview ingress sends `/api/*` to port 8001 (supervisor config is read-only) → a preview-only relay may remain there; it must not be part of production.
+- Production MongoDB is a fresh Emergent-managed Atlas → first boot seeds it without delaying health checks.
 
 ## Seed Data
 - Fresh database (no migration of PostgreSQL data). Seed = the repo's existing seed: ESPACIO Q salon settings & location metadata, default services catalog, professionals catalog, weekly schedule, CMS defaults, email templates, automation rules, integration connection placeholders.

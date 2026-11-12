@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { checkRateLimit, getClientIdentifier, isSameOrigin } from "@/lib/security/rate-limit";
 import { dispatchEmailWithAudit, renderZenLinenEmailLayout } from "@/lib/email/provider";
 import { sendSalonContactNotice } from "@/lib/email/notices";
+import { withDbGuard } from "@/lib/http/db-guard";
 
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -17,7 +18,7 @@ const schema = z.object({
   website: z.string().max(0).optional(), // honeypot antispam: debe llegar vacío
 });
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!isSameOrigin(req)) {
     return NextResponse.json({ error: "Origen no permitido." }, { status: 403 });
   }
@@ -77,3 +78,5 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = withDbGuard(handlePOST);
